@@ -13,13 +13,13 @@ static const char *TAG = "golioth_tensorflow";
 #include "sample_credentials.h"
 #include <golioth/client.h>
 #include <golioth/stream.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+#include <golioth/ota.h>
 
 #include "bsp/m5stack_core_s3.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "model_handler.h"
 #include <sys/stat.h>
 
 /* Component Queue */
@@ -31,6 +31,8 @@ static QueueHandle_t xQueue;
 
 #define SD_MOUNT_POINT "/sdcard"
 #define MODEL_PACKAGE_NAME "model"
+static char *selected_model_path = NULL;
+static bool new_model_available = false;
 
 static SemaphoreHandle_t _connected_sem = NULL;
 
@@ -105,6 +107,20 @@ static void on_manifest(struct golioth_client *client,
     }
 }
 
+static char *store_model_path(char *path, size_t len)
+{
+    char *model_path = (char *) calloc(len + 1, sizeof(char));
+    if (!model_path)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory to store path");
+        return NULL;
+    }
+
+    snprintf(model_path, strlen(path) + 1, "%s", path);
+
+    return model_path;
+}
+
 static enum golioth_status write_artifact_block(const struct golioth_ota_component *component,
                                                 uint32_t block_idx,
                                                 uint8_t *block_buffer,
@@ -138,6 +154,8 @@ static void init_package_queue(void)
 
 static void download_packages_in_queue(struct golioth_client *client)
 {
+    char *new_path = NULL;
+
     while (uxQueueMessagesWaiting(xQueue))
     {
         struct golioth_ota_component *component = NULL;
@@ -161,8 +179,14 @@ static void download_packages_in_queue(struct golioth_client *client)
                  component->package,
                  component->version);
 
+        /* Server has told us this is the most recent release, use it as the selected model */
+        if (strncmp(component->package, MODEL_PACKAGE_NAME, strlen(MODEL_PACKAGE_NAME)) == 0)
+        {
+            free(new_path);
+            new_path = store_model_path(path, strlen(path));
+        }
+
         /* Check if file exists */
-        bsp_sdcard_mount();
         struct stat st;
         if (stat(path, &st) == 0)
         {
@@ -171,7 +195,6 @@ static void download_packages_in_queue(struct golioth_client *client)
         }
         else
         {
-            // Create new file
             GLTH_LOGI(TAG, "Opening file for writing: %s", path);
             f = fopen(path, "a");
             if (!f)
@@ -188,7 +211,12 @@ static void download_packages_in_queue(struct golioth_client *client)
         free(component);
     }
 
-    bsp_sdcard_unmount();
+    if (new_path)
+    {
+        free(selected_model_path);
+        selected_model_path = new_path;
+        new_model_available = true;
+    }
 }
 
 void app_main(void)
@@ -196,6 +224,7 @@ void app_main(void)
     GLTH_LOGI(TAG, "Start Golioth TensorFlow model update example");
 
     init_package_queue();
+    bsp_sdcard_mount();
 
     /* Golioth connection */
     /* Get credentials from NVS and enable shell */
@@ -234,11 +263,28 @@ void app_main(void)
     GLTH_LOGW(TAG, "Waiting for connection to Golioth...");
     xSemaphoreTake(_connected_sem, portMAX_DELAY);
 
+    struct tf_model_ctx *model_context = NULL;
+    ESP_LOGI(TAG, "Awaiting version information from server before loading a TensorFlow model");
+
     int counter = 0;
 
     while (true)
     {
         download_packages_in_queue(client);
+
+        if (new_model_available)
+        {
+            new_model_available = false;
+            model_free(model_context);
+            model_context = model_init_from_file(selected_model_path);
+            if (model_context != NULL)
+            {
+                ESP_LOGI(TAG, "Model loaded from SD card.");
+                /* TODO: Set up TensorFlow */
+            }
+        }
+
+        /* TODO: Replace counter and delay with TensorFlow voice recogntion */
         GLTH_LOGI(TAG, "Sending hello! %d", counter);
         ++counter;
         vTaskDelay(5000 / portTICK_PERIOD_MS);
