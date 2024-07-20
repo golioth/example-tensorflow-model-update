@@ -2,8 +2,8 @@
 
 ## Overview
 
-This application download a TensorFlow Lite model from the Golioth
-servers and uses it to recognize spoken words using an i2c microphone.
+This application downloads a TensorFlow Lite model from the Golioth
+servers and uses it to recognize spoken words using an i2s microphone.
 
 ## Local Setup
 
