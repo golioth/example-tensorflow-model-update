@@ -21,6 +21,7 @@ static const char *TAG = "golioth_tensorflow";
 #include "freertos/semphr.h"
 #include "model_handler.h"
 #include <sys/stat.h>
+#include "unistd.h"
 
 /* TFlite micro_speech */
 #include <stdio.h>
@@ -41,6 +42,7 @@ static QueueHandle_t xQueue;
 
 #define SD_MOUNT_POINT "/sdcard"
 #define MODEL_PACKAGE_NAME "model"
+#define STORED_MODEL_PATH SD_MOUNT_POINT "/use_this_model_path.txt"
 static char *selected_model_path = NULL;
 static bool new_model_available = false;
 
@@ -117,7 +119,7 @@ static void on_manifest(struct golioth_client *client,
     }
 }
 
-static char *store_model_path(char *path, size_t len)
+static char *format_model_path(char *path, size_t len)
 {
     char *model_path = (char *) calloc(len + 1, sizeof(char));
     if (!model_path)
@@ -162,6 +164,86 @@ static void init_package_queue(void)
     assert(xQueue);
 }
 
+static char *sdcard_get_selected_model_path(void)
+{
+    /* Check if file exists */
+    struct stat st;
+    if (stat(STORED_MODEL_PATH, &st) != 0)
+    {
+        GLTH_LOGI(TAG, "File not found: %s", STORED_MODEL_PATH);
+        return NULL;
+    }
+
+    /* Load file as string and return */
+    size_t file_len = st.st_size;
+    char *path = calloc(file_len + 1, sizeof(char));
+    if (!path)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory");
+        return NULL;
+    }
+
+    FILE *f = fopen(STORED_MODEL_PATH, "r");
+    fread(path, file_len, 1, f);
+
+    esp_err_t err = ferror(f);
+    if (err)
+    {
+        ESP_LOGE(TAG, "Error reading %s: %d", STORED_MODEL_PATH, err);
+        free(path);
+        path = NULL;
+    }
+    else {
+        /* Sanitize non-printable characters */
+        for (int i = 0; i < strlen(path); i++)
+        {
+            if ((path[i] < 0x20) || (path[i] > 0x7E))
+            {
+                path[i] = '\0';
+            }
+        }
+    }
+
+    fclose(f);
+
+    if (path)
+    {
+        ESP_LOGI(TAG, "Loaded saved path for selected model: %s", path);
+    }
+    return path;
+}
+
+static esp_err_t sdcard_store_selected_model_path(char *path)
+{
+    if (!path)
+    {
+        ESP_LOGE(TAG, "Path cannot be NULL");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    /* Check if file exists */
+    struct stat st;
+    if (stat(STORED_MODEL_PATH, &st) == 0)
+    {
+        GLTH_LOGD(TAG, "Replacing file: %s", STORED_MODEL_PATH);
+        unlink(STORED_MODEL_PATH);
+    }
+
+    esp_err_t err = ESP_OK;
+
+    FILE *f = fopen(STORED_MODEL_PATH, "w");
+    fwrite(path, strlen(path), 1, f);
+
+    err = ferror(f);
+    if (err)
+    {
+        ESP_LOGE(TAG, "Error writing %s: %d", STORED_MODEL_PATH, err);
+    }
+
+    fclose(f);
+    return err;
+}
+
 static void download_packages_in_queue(struct golioth_client *client)
 {
     char *new_path = NULL;
@@ -193,7 +275,7 @@ static void download_packages_in_queue(struct golioth_client *client)
         if (strncmp(component->package, MODEL_PACKAGE_NAME, strlen(MODEL_PACKAGE_NAME)) == 0)
         {
             free(new_path);
-            new_path = store_model_path(path, strlen(path));
+            new_path = format_model_path(path, strlen(path));
         }
 
         /* Check if file exists */
@@ -223,8 +305,18 @@ static void download_packages_in_queue(struct golioth_client *client)
 
     if (new_path)
     {
+        if (selected_model_path)
+        {
+            if (strcmp(selected_model_path, new_path) == 0)
+            {
+                ESP_LOGI(TAG, "Received model matches stored model");
+                return;
+            }
+        }
+
         free(selected_model_path);
         selected_model_path = new_path;
+        sdcard_store_selected_model_path(selected_model_path);
         new_model_available = true;
     }
 }
@@ -257,6 +349,19 @@ void app_main(void)
     wifi_init(nvs_read_wifi_ssid(), nvs_read_wifi_password());
     wifi_wait_for_connected();
 
+    /* Load stored model path before connecting to Golioth */
+    struct tf_model_ctx *model_context = NULL;
+    selected_model_path = sdcard_get_selected_model_path();
+
+    if (!selected_model_path)
+    {
+        ESP_LOGI(TAG, "Awaiting version information from server before loading a TensorFlow model");
+    }
+    else
+    {
+        new_model_available = true;
+    }
+
     /* Connect to Golioth */
     const struct golioth_client_config *config = golioth_sample_credentials_get();
     struct golioth_client *client = golioth_client_create(config);
@@ -273,27 +378,37 @@ void app_main(void)
     GLTH_LOGW(TAG, "Waiting for connection to Golioth...");
     xSemaphoreTake(_connected_sem, portMAX_DELAY);
 
-    struct tf_model_ctx *model_context = NULL;
-    ESP_LOGI(TAG, "Awaiting version information from server before loading a TensorFlow model");
-
     while (true)
     {
         download_packages_in_queue(client);
 
         if (new_model_available)
         {
-            new_model_available = false;
-            model_free(model_context);
-            model_context = model_init_from_file(selected_model_path);
-            if (model_context != NULL)
+            if (model_context)
             {
-                ESP_LOGI(TAG, "Model loaded from SD card.");
-                /* Initialize micro_speech example */
-                tf_micro_speech_init(model_context);
+                /* TensorFlow was previously initialized. The easiest way to load a new model is to
+                 * reboot the processor */
+                ESP_LOGW(TAG, "Rebooting to load new TensorFlow model.");
+                esp_restart();
+            }
+            else
+            {
+                new_model_available = false;
+                model_context = model_init_from_file(selected_model_path);
+                if (model_context != NULL)
+                {
+                    ESP_LOGI(TAG, "Model loaded from SD card.");
+
+                    /* Initialize TensorFlow */
+                    tf_micro_speech_init(model_context);
+                }
             }
         }
 
-        /* Run micro_speech recognition */
-        tf_micro_speech_run_inference(model_context);
+        /* Run TensorFlow micro_speech recognition */
+        if (model_context)
+        {
+            tf_micro_speech_run_inference(model_context);
+        }
     }
 }
