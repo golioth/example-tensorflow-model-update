@@ -1,4 +1,5 @@
 /* Copyright 2020-2023 The TensorFlow Authors. All Rights Reserved.
+   Copyright 2024 Golioth, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +25,7 @@ limitations under the License.
 #include "feature_provider.h"
 #include "micro_model_settings.h"
 #include "model.h"
-#include "recognize_commands.h"
+#include "model_handler.h"
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/core/c/common.h"
@@ -38,7 +39,6 @@ const tflite::Model* model = nullptr;
 tflite::MicroInterpreter* interpreter = nullptr;
 TfLiteTensor* model_input = nullptr;
 FeatureProvider* feature_provider = nullptr;
-RecognizeCommands* recognizer = nullptr;
 int32_t previous_time = 0;
 
 // Create an area of memory to use for input, output, and intermediate arrays.
@@ -50,11 +50,10 @@ int8_t feature_buffer[kFeatureElementCount];
 int8_t* model_input_buffer = nullptr;
 }  // namespace
 
-// The name of this function is important for Arduino compatibility.
-void setup() {
+void tf_micro_speech_init(struct tf_model_ctx *ctx) {
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
-  model = tflite::GetModel(g_model);
+  model = tflite::GetModel(ctx->data);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     MicroPrintf("Model provided is schema version %d not equal to supported "
                 "version %d.", model->version(), TFLITE_SCHEMA_VERSION);
@@ -69,8 +68,11 @@ void setup() {
   //
   // tflite::AllOpsResolver resolver;
   // NOLINTNEXTLINE(runtime-global-variables)
-  static tflite::MicroMutableOpResolver<4> micro_op_resolver;
+  static tflite::MicroMutableOpResolver<5> micro_op_resolver;
   if (micro_op_resolver.AddDepthwiseConv2D() != kTfLiteOk) {
+    return;
+  }
+  if (micro_op_resolver.AddConv2D() != kTfLiteOk) {
     return;
   }
   if (micro_op_resolver.AddFullyConnected() != kTfLiteOk) {
@@ -113,14 +115,10 @@ void setup() {
                                                  feature_buffer);
   feature_provider = &static_feature_provider;
 
-  static RecognizeCommands static_recognizer;
-  recognizer = &static_recognizer;
-
   previous_time = 0;
 }
 
-// The name of this function is important for Arduino compatibility.
-void loop() {
+void tf_micro_speech_run_inference(struct tf_model_ctx *ctx) {
   // Fetch the spectrogram for the current time.
   const int32_t current_time = LatestAudioTimestamp();
   int how_many_new_slices = 0;
@@ -157,7 +155,7 @@ void loop() {
   int max_idx = 0;
   float max_result = 0.0;
   // Dequantize output values and find the max
-  for (int i = 0; i < kCategoryCount; i++) {
+  for (int i = 0; i < ctx->label_count; i++) {
     float current_result =
         (tflite::GetTensorData<int8_t>(output)[i] - output_zero_point) *
         output_scale;
@@ -167,7 +165,7 @@ void loop() {
     }
   }
   if (max_result > 0.8f) {
-    MicroPrintf("Detected %7s, score: %.2f", kCategoryLabels[max_idx],
+    MicroPrintf("Detected %7s, score: %.2f", ctx->labels[max_idx],
         static_cast<double>(max_result));
   }
 #else

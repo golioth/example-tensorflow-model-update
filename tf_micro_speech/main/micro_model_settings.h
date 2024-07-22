@@ -1,4 +1,5 @@
 /* Copyright 2023 The TensorFlow Authors. All Rights Reserved.
+   Copyright 2024 Golioth, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,14 +26,5 @@ constexpr int kFeatureCount = 49;
 constexpr int kFeatureElementCount = (kFeatureSize * kFeatureCount);
 constexpr int kFeatureStrideMs = 20;
 constexpr int kFeatureDurationMs = 30;
-
-// Variables for the model's output categories.
-constexpr int kCategoryCount = 4;
-constexpr const char* kCategoryLabels[kCategoryCount] = {
-    "silence",
-    "unknown",
-    "yes",
-    "no",
-};
 
 #endif  // TENSORFLOW_LITE_MICRO_EXAMPLES_MICRO_SPEECH_MICRO_MODEL_SETTINGS_H_

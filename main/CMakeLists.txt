@@ -7,7 +7,6 @@ set(tflite_micro_speech_srcs
         "../tf_micro_speech/main/no_micro_features_data.cc"
         "../tf_micro_speech/main/yes_micro_features_data.cc"
         "../tf_micro_speech/main/model.cc"
-        "../tf_micro_speech/main/recognize_commands.cc"
         "../tf_micro_speech/main/command_responder.cc"
         "../tf_micro_speech/main/micro_features_generator.cc"
         "../tf_micro_speech/main/ringbuf.c"
