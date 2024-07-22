@@ -31,7 +31,7 @@ static const char *TAG = "golioth_tensorflow";
 
 #include "esp_log.h"
 #include "esp_system.h"
-#include "../tf_micro_speech/main/main_functions.h"
+#include "../tf_micro_speech/main_functions.h"
 
 /* Component Queue */
 #define QUEUE_LENGTH CONFIG_GOLIOTH_OTA_MAX_NUM_COMPONENTS

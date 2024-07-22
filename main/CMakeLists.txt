@@ -1,11 +1,11 @@
 set(esp_idf_common "../submodules/golioth-firmware-sdk/examples/esp_idf/common")
 
 set(tflite_micro_speech_srcs
-        "../tf_micro_speech/main/main_functions.cc"
-        "../tf_micro_speech/main/audio_provider.cc"
-        "../tf_micro_speech/main/feature_provider.cc"
-        "../tf_micro_speech/main/micro_features_generator.cc"
-        "../tf_micro_speech/main/ringbuf.c"
+        "../tf_micro_speech/main_functions.cc"
+        "../tf_micro_speech/audio_provider.cc"
+        "../tf_micro_speech/feature_provider.cc"
+        "../tf_micro_speech/micro_features_generator.cc"
+        "../tf_micro_speech/ringbuf.c"
         )
 
 set(tflite_micro_speech_priv_reqs
