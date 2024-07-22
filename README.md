@@ -5,6 +5,16 @@
 This application downloads a TensorFlow Lite model from the Golioth
 servers and uses it to recognize spoken words using an i2s microphone.
 
+* Compile and load the application on an m5stack CoreS3 device
+* Upload the included TensorFlow models as Golioth artifacts
+* Roll out a release with your desired artifact; the device will no be
+  able to recognize simple words (eg: yes, no)
+* Release the other artifact to load a new model that recognizes
+  additional words (stop, go)
+
+Use this application as a reference when adding multi-artifact download
+to update trained models on your machine-learning applications.
+
 ## Local Setup
 
 ```
