@@ -4,10 +4,6 @@ set(tflite_micro_speech_srcs
         "../tf_micro_speech/main/main_functions.cc"
         "../tf_micro_speech/main/audio_provider.cc"
         "../tf_micro_speech/main/feature_provider.cc"
-        "../tf_micro_speech/main/no_micro_features_data.cc"
-        "../tf_micro_speech/main/yes_micro_features_data.cc"
-        "../tf_micro_speech/main/model.cc"
-        "../tf_micro_speech/main/command_responder.cc"
         "../tf_micro_speech/main/micro_features_generator.cc"
         "../tf_micro_speech/main/ringbuf.c"
         )
@@ -16,7 +12,6 @@ set(tflite_micro_speech_priv_reqs
         "spi_flash"
         "driver"
         "esp_timer"
-        "test_data"
         )
 
 idf_component_register(SRCS
