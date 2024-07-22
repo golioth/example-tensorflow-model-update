@@ -22,6 +22,16 @@ static const char *TAG = "golioth_tensorflow";
 #include "model_handler.h"
 #include <sys/stat.h>
 
+/* TFlite micro_speech */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+
+#include "esp_log.h"
+#include "esp_system.h"
+#include "../tf_micro_speech/main/main_functions.h"
+
 /* Component Queue */
 #define QUEUE_LENGTH CONFIG_GOLIOTH_OTA_MAX_NUM_COMPONENTS
 #define QUEUE_ITEM_SIZE sizeof(struct golioth_ota_component *)
@@ -266,7 +276,8 @@ void app_main(void)
     struct tf_model_ctx *model_context = NULL;
     ESP_LOGI(TAG, "Awaiting version information from server before loading a TensorFlow model");
 
-    int counter = 0;
+    /* Initialize micro_speech example */
+    setup();
 
     while (true)
     {
@@ -284,9 +295,7 @@ void app_main(void)
             }
         }
 
-        /* TODO: Replace counter and delay with TensorFlow voice recogntion */
-        GLTH_LOGI(TAG, "Sending hello! %d", counter);
-        ++counter;
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        /* Run micro_speech recognition */
+        loop();
     }
 }
