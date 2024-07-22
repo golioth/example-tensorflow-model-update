@@ -276,9 +276,6 @@ void app_main(void)
     struct tf_model_ctx *model_context = NULL;
     ESP_LOGI(TAG, "Awaiting version information from server before loading a TensorFlow model");
 
-    /* Initialize micro_speech example */
-    setup();
-
     while (true)
     {
         download_packages_in_queue(client);
@@ -291,11 +288,12 @@ void app_main(void)
             if (model_context != NULL)
             {
                 ESP_LOGI(TAG, "Model loaded from SD card.");
-                /* TODO: Set up TensorFlow */
+                /* Initialize micro_speech example */
+                tf_micro_speech_init(model_context);
             }
         }
 
         /* Run micro_speech recognition */
-        loop();
+        tf_micro_speech_run_inference(model_context);
     }
 }

@@ -1,4 +1,5 @@
 /* Copyright 2019 The TensorFlow Authors. All Rights Reserved.
+   Copyright 2024 Golioth, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,14 +22,14 @@ limitations under the License.
 extern "C" {
 #endif
 
-// Initializes all data needed for the example. The name is important, and needs
-// to be setup() for Arduino compatibility.
-void setup();
+#include <stdint.h>
+
+// Initializes all data needed for the example.
+void tf_micro_speech_init(struct tf_model_ctx *ctx);
 
 // Runs one iteration of data gathering and inference. This should be called
-// repeatedly from the application code. The name needs to be loop() for Arduino
-// compatibility.
-void loop();
+// repeatedly from the application code.
+void tf_micro_speech_run_inference(struct tf_model_ctx *ctx);
 
 #ifdef __cplusplus
 }
