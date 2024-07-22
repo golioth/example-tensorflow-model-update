@@ -67,7 +67,6 @@ uint8_t g_i2s_read_buffer[i2s_bytes_to_read] = {};
 
 static void i2s_init(void) {
     mic_codec_dev = bsp_audio_codec_microphone_init();
-    esp_codec_dev_set_in_gain(mic_codec_dev, 42.0);
 
     esp_codec_dev_sample_info_t codec_record_cfg = {
         .bits_per_sample = 16,
