@@ -21,10 +21,8 @@ limitations under the License.
 #include "main_functions.h"
 
 #include "audio_provider.h"
-#include "command_responder.h"
 #include "feature_provider.h"
 #include "micro_model_settings.h"
-#include "model.h"
 #include "model_handler.h"
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
@@ -149,7 +147,7 @@ void tf_micro_speech_run_inference(struct tf_model_ctx *ctx) {
 
   // Obtain a pointer to the output tensor
   TfLiteTensor* output = interpreter->output(0);
-#if 1 // using simple argmax instead of recognizer
+  // using simple argmax instead of recognizer
   float output_scale = output->params.scale;
   int output_zero_point = output->params.zero_point;
   int max_idx = 0;
@@ -168,20 +166,4 @@ void tf_micro_speech_run_inference(struct tf_model_ctx *ctx) {
     MicroPrintf("Detected %7s, score: %.2f", ctx->labels[max_idx],
         static_cast<double>(max_result));
   }
-#else
-  // Determine whether a command was recognized based on the output of inference
-  const char* found_command = nullptr;
-  float score = 0;
-  bool is_new_command = false;
-  TfLiteStatus process_status = recognizer->ProcessLatestResults(
-      output, current_time, &found_command, &score, &is_new_command);
-  if (process_status != kTfLiteOk) {
-    MicroPrintf("RecognizeCommands::ProcessLatestResults() failed");
-    return;
-  }
-  // Do something based on the recognized command. The default implementation
-  // just prints to the error console, but you should replace this with your
-  // own function for a real application.
-  RespondToCommand(current_time, found_command, score, is_new_command);
-#endif
 }
